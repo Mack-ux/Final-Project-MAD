@@ -15,7 +15,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late Future<Map<String, dynamic>> _weatherFuture;
-  final String apiKey = '843469414b5e5ba7e49439b5bcd4185e';
+  final String apiKey = 'apikeyhere';
 
   @override
   void initState() {
