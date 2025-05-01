@@ -4,6 +4,11 @@ import 'dart:convert';
 import 'MapScreen.dart';
 import '5dayScreen.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+// Local notification plugin instance
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 class MainScreen extends StatefulWidget {
   final String location;
@@ -20,10 +25,32 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _weatherFuture = fetchWeatherAndForecast(widget.location);
+    _weatherFuture = fetchWeatherAndForecast(widget.location).then((data) {
+      // Extract weather data
+      final current = data['current'];
+      final temp = current['main']['temp'];
+      final desc = current['weather'][0]['description'];
+
+      // Trigger a local notification
+      flutterLocalNotificationsPlugin.show(
+        0,
+        'Weather in ${widget.location}',
+        'Current temp: ${temp.toStringAsFixed(1)}°F, $desc',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'default_channel_id',
+            'Default Channel',
+            channelDescription: 'Shows current weather updates',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+        ),
+      );
+
+      return data;
+    });
   }
 
-  // current weather and 5day/3hour forecast from OpenWeatherMap API
   Future<Map<String, dynamic>> fetchWeatherAndForecast(String location) async {
     final currentUrl =
         'https://api.openweathermap.org/data/2.5/weather?q=$location&units=imperial&appid=$apiKey';
@@ -73,7 +100,6 @@ class _MainScreenState extends State<MainScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // current temperature, humidity, and description
                   CurrentWeatherInfo(
                     temperature: current['main']['temp'],
                     description: current['weather'][0]['description'],
@@ -81,14 +107,11 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Divider(),
-
                   const Text(
                     'Next 24 Hours Forecast',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
-
-                  // hourly forecast cards
                   SizedBox(
                     height: 180,
                     child: SingleChildScrollView(
@@ -100,22 +123,18 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // refresh button
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _weatherFuture = fetchWeatherAndForecast(widget.location);
+                        _weatherFuture =
+                            fetchWeatherAndForecast(widget.location);
                       });
                     },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh'),
                   ),
                   const SizedBox(height: 10),
-
-                  // navigation to map
                   ElevatedButton(
                     onPressed: () => Navigator.push(
                       context,
@@ -126,13 +145,12 @@ class _MainScreenState extends State<MainScreen> {
                     child: const Text('Map'),
                   ),
                   const SizedBox(height: 10),
-
-                  // navigation to 5-day forecast
                   ElevatedButton(
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => FiveDayScreen(location: widget.location),
+                        builder: (_) =>
+                            FiveDayScreen(location: widget.location),
                       ),
                     ),
                     child: const Text('5-Day Forecast'),
@@ -149,7 +167,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-/// widget displaying current info
 class CurrentWeatherInfo extends StatelessWidget {
   final double temperature;
   final String description;
@@ -177,7 +194,6 @@ class CurrentWeatherInfo extends StatelessWidget {
   }
 }
 
-/// widget displaying each hourly forecast card
 class HourlyForecastCard extends StatelessWidget {
   final Map<String, dynamic> data;
 
