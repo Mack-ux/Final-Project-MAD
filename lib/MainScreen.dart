@@ -4,6 +4,11 @@ import 'dart:convert';
 import 'MapScreen.dart';
 import '5dayScreen.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:latlong2/latlong.dart';
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 class MainScreen extends StatefulWidget {
   final String location;
@@ -15,12 +20,50 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late Future<Map<String, dynamic>> _weatherFuture;
-  final String apiKey = 'apikeyhere';
+  final String apiKey = 'e1f9fa009adb34c884f6cdeccbfb8a0c';
 
   @override
   void initState() {
     super.initState();
-    _weatherFuture = fetchWeatherAndForecast(widget.location);
+    _weatherFuture = fetchWeatherAndForecast(widget.location).then((data) {
+      // Extract weather data
+      final current = data['current'];
+      final temp = current['main']['temp'];
+      final desc = current['weather'][0]['description'];
+
+      // Trigger a local notification
+      flutterLocalNotificationsPlugin.show(
+        0,
+        'Weather in ${widget.location}',
+        'Current temp: ${temp.toStringAsFixed(1)}°F, $desc',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'default_channel_id',
+            'Default Channel',
+            channelDescription: 'Shows current weather updates',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+        ),
+      );
+
+      return data;
+    });
+  }
+
+  // fetch coordinates for any city
+  Future<LatLng?> fetchCoordinates(String location) async {
+    final url =
+        'https://api.openweathermap.org/geo/1.0/direct?q=$location&limit=1&appid=$apiKey';
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        return LatLng(data[0]['lat'], data[0]['lon']);
+      }
+    }
+    return null;
   }
 
   // current weather and 5day/3hour forecast from OpenWeatherMap API
@@ -81,13 +124,11 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Divider(),
-
                   const Text(
                     'Next 24 Hours Forecast',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
-
                   // hourly forecast cards
                   SizedBox(
                     height: 180,
@@ -100,39 +141,50 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   // refresh button
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _weatherFuture = fetchWeatherAndForecast(widget.location);
+                        _weatherFuture =
+                            fetchWeatherAndForecast(widget.location);
                       });
                     },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh'),
                   ),
                   const SizedBox(height: 10),
-
                   // navigation to map
                   ElevatedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MapScreen(location: widget.location),
-                      ),
-                    ),
+                    onPressed: () async {
+                      final coords = await fetchCoordinates(widget.location);
+                      if (coords != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => MapScreen(
+                                  location: widget.location,
+                                  coordinates: coords,
+                                ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Location not found')),
+                        );
+                      }
+                    },
                     child: const Text('Map'),
                   ),
                   const SizedBox(height: 10),
-
                   // navigation to 5-day forecast
                   ElevatedButton(
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => FiveDayScreen(location: widget.location),
+                        builder: (_) =>
+                            FiveDayScreen(location: widget.location),
                       ),
                     ),
                     child: const Text('5-Day Forecast'),
@@ -177,7 +229,7 @@ class CurrentWeatherInfo extends StatelessWidget {
   }
 }
 
-/// widget displaying each hourly forecast card
+// widget displaying each hourly forecast card
 class HourlyForecastCard extends StatelessWidget {
   final Map<String, dynamic> data;
 
