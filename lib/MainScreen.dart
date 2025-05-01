@@ -5,8 +5,8 @@ import 'MapScreen.dart';
 import '5dayScreen.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:latlong2/latlong.dart';
 
-// Local notification plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -51,6 +51,22 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  // fetch coordinates for any city
+  Future<LatLng?> fetchCoordinates(String location) async {
+    final url =
+        'https://api.openweathermap.org/geo/1.0/direct?q=$location&limit=1&appid=$apiKey';
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        return LatLng(data[0]['lat'], data[0]['lon']);
+      }
+    }
+    return null;
+  }
+
+  // current weather and 5day/3hour forecast from OpenWeatherMap API
   Future<Map<String, dynamic>> fetchWeatherAndForecast(String location) async {
     final currentUrl =
         'https://api.openweathermap.org/data/2.5/weather?q=$location&units=imperial&appid=$apiKey';
@@ -100,6 +116,7 @@ class _MainScreenState extends State<MainScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
+                  // current temperature, humidity, and description
                   CurrentWeatherInfo(
                     temperature: current['main']['temp'],
                     description: current['weather'][0]['description'],
@@ -112,6 +129,7 @@ class _MainScreenState extends State<MainScreen> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
+                  // hourly forecast cards
                   SizedBox(
                     height: 180,
                     child: SingleChildScrollView(
@@ -124,6 +142,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // refresh button
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
@@ -135,16 +154,31 @@ class _MainScreenState extends State<MainScreen> {
                     label: const Text('Refresh'),
                   ),
                   const SizedBox(height: 10),
+                  // navigation to map
                   ElevatedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MapScreen(location: widget.location),
-                      ),
-                    ),
+                    onPressed: () async {
+                      final coords = await fetchCoordinates(widget.location);
+                      if (coords != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => MapScreen(
+                                  location: widget.location,
+                                  coordinates: coords,
+                                ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Location not found')),
+                        );
+                      }
+                    },
                     child: const Text('Map'),
                   ),
                   const SizedBox(height: 10),
+                  // navigation to 5-day forecast
                   ElevatedButton(
                     onPressed: () => Navigator.push(
                       context,
@@ -167,6 +201,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
+/// widget displaying current info
 class CurrentWeatherInfo extends StatelessWidget {
   final double temperature;
   final String description;
@@ -194,6 +229,7 @@ class CurrentWeatherInfo extends StatelessWidget {
   }
 }
 
+// widget displaying each hourly forecast card
 class HourlyForecastCard extends StatelessWidget {
   final Map<String, dynamic> data;
 
