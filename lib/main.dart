@@ -1,13 +1,15 @@
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
-import 'package:weather_app/Firebase_api.dart';
-import 'package:weather_app/firebase_msg.dart';
 import 'package:weather_app/firebase_options.dart';
-import 'HomeScreen.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'HomeScreen.dart';
+import 'login.dart';
+
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
+import 'package:weather_app/Firebase_api.dart';
+import 'package:weather_app/firebase_msg.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -40,30 +42,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Setup notifications plugin
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
   );
-
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // Register notification channel
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
-
-  // Register background handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Init FCM handlers
   await FirebaseMsg().initFCM();
   await FirebaseApi().initNotifications();
-
-  FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   runApp(const WeatherlyApp());
 }
@@ -76,7 +67,18 @@ class WeatherlyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Weatherly',
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          } else if (snapshot.hasData) {
+            return const HomeScreen();
+          } else {
+            return const LoginScreen();
+          }
+        },
+      ),
     );
   }
 }
