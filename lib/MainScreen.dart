@@ -27,7 +27,7 @@ class _MainScreenState extends State<MainScreen> {
     _weatherFuture = fetchWeatherAndForecast(widget.location);
   }
 
-  // NEW: Geocoding function to fetch coordinates for any city
+  // geocoding function to fetch coordinates for any city
   Future<LatLng?> fetchCoordinates(String location) async {
     final url =
         'https://api.openweathermap.org/geo/1.0/direct?q=$location&limit=1&appid=$apiKey';
@@ -184,8 +184,9 @@ class _MainScreenState extends State<MainScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.blueGrey),
                       borderRadius: BorderRadius.circular(8),
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(),
                     ),
+                    
                     height: 250,
                     child: Column(
                       children: [
@@ -259,7 +260,7 @@ class _MainScreenState extends State<MainScreen> {
 
                                 final city = widget.location.toLowerCase();
 
-                                // 🔍 Check if this user has submitted a report to this city recently
+                                // check if this user has submitted a report to this city recently
                                 final query =
                                     await FirebaseFirestore.instance
                                         .collection('reports')
@@ -324,7 +325,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-/// widget displaying current info
+// widget displaying current info
 class CurrentWeatherInfo extends StatelessWidget {
   final double temperature;
   final String description;
