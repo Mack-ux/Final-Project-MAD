@@ -50,11 +50,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAOmZy_ZcuFfjK_ZXqa4JCfTwpPo4dZNjk',
-    appId: '1:974791629201:android:9142027f5a8dc8d89ce230',
-    messagingSenderId: '974791629201',
-    projectId: 'weather-app-f3302',
-    storageBucket: 'weather-app-f3302.firebasestorage.app',
+    apiKey: 'AIzaSyALl4qoJanMAHvNPcDlynxf5MZIb1gg_Qw',
+    appId: '1:548576406953:android:2faeaf831ffd2ab01be8b8',
+    messagingSenderId: '548576406953',
+    projectId: 'weatherapp-90574',
+    storageBucket: 'weatherapp-90574.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

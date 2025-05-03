@@ -4,11 +4,9 @@ import 'dart:convert';
 import 'MapScreen.dart';
 import '5dayScreen.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:latlong2/latlong.dart';
-
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MainScreen extends StatefulWidget {
   final String location;
@@ -21,37 +19,15 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late Future<Map<String, dynamic>> _weatherFuture;
   final String apiKey = 'e1f9fa009adb34c884f6cdeccbfb8a0c';
+  final TextEditingController _reportController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _weatherFuture = fetchWeatherAndForecast(widget.location).then((data) {
-      // Extract weather data
-      final current = data['current'];
-      final temp = current['main']['temp'];
-      final desc = current['weather'][0]['description'];
-
-      // Trigger a local notification
-      flutterLocalNotificationsPlugin.show(
-        0,
-        'Weather in ${widget.location}',
-        'Current temp: ${temp.toStringAsFixed(1)}°F, $desc',
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'default_channel_id',
-            'Default Channel',
-            channelDescription: 'Shows current weather updates',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-        ),
-      );
-
-      return data;
-    });
+    _weatherFuture = fetchWeatherAndForecast(widget.location);
   }
 
-  // fetch coordinates for any city
+  // geocoding function to fetch coordinates for any city
   Future<LatLng?> fetchCoordinates(String location) async {
     final url =
         'https://api.openweathermap.org/geo/1.0/direct?q=$location&limit=1&appid=$apiKey';
@@ -124,11 +100,13 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Divider(),
+
                   const Text(
                     'Next 24 Hours Forecast',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
+
                   // hourly forecast cards
                   SizedBox(
                     height: 180,
@@ -141,19 +119,23 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 20),
+
                   // refresh button
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
-                        _weatherFuture =
-                            fetchWeatherAndForecast(widget.location);
+                        _weatherFuture = fetchWeatherAndForecast(
+                          widget.location,
+                        );
                       });
                     },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh'),
                   ),
                   const SizedBox(height: 10),
+
                   // navigation to map
                   ElevatedButton(
                     onPressed: () async {
@@ -178,16 +160,158 @@ class _MainScreenState extends State<MainScreen> {
                     child: const Text('Map'),
                   ),
                   const SizedBox(height: 10),
+
                   // navigation to 5-day forecast
                   ElevatedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            FiveDayScreen(location: widget.location),
-                      ),
-                    ),
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => FiveDayScreen(location: widget.location),
+                          ),
+                        ),
                     child: const Text('5-Day Forecast'),
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const Text(
+                    'Community Reports',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blueGrey),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white.withValues(),
+                    ),
+                    
+                    height: 250,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: StreamBuilder<QuerySnapshot>(
+                            stream:
+                                FirebaseFirestore.instance
+                                    .collection('reports')
+                                    .where('city', isEqualTo: widget.location)
+                                    .orderBy('timestamp', descending: true)
+                                    .limit(20)
+                                    .snapshots(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) {
+                                return const Text('Loading messages...');
+                              }
+                              final docs = snapshot.data!.docs;
+
+                              return ListView.builder(
+                                reverse: true,
+                                itemCount: docs.length,
+                                itemBuilder: (context, index) {
+                                  final data =
+                                      docs[index].data()
+                                          as Map<String, dynamic>;
+                                  final time =
+                                      (data['timestamp'] as Timestamp).toDate();
+                                  final user =
+                                      data['userDisplayName'] ?? 'User';
+                                  final message = data['message'] ?? '';
+
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                    ),
+                                    child: Text(
+                                      '$user: $message (${time.hour}:${time.minute.toString().padLeft(2, '0')})',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _reportController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Hows the weather lookin here?',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.send),
+                              onPressed: () async {
+                                final msg = _reportController.text.trim();
+                                final user = FirebaseAuth.instance.currentUser;
+
+                                if (msg.isEmpty || user == null) return;
+
+                                final city = widget.location.toLowerCase();
+
+                                // check if this user has submitted a report to this city recently
+                                final query =
+                                    await FirebaseFirestore.instance
+                                        .collection('reports')
+                                        .where('userId', isEqualTo: user.uid)
+                                        .where('city', isEqualTo: city)
+                                        .orderBy('timestamp', descending: true)
+                                        .limit(1)
+                                        .get();
+
+                                if (query.docs.isNotEmpty) {
+                                  final lastTime =
+                                      (query.docs.first['timestamp']
+                                              as Timestamp)
+                                          .toDate();
+                                  final now = DateTime.now();
+                                  final diff = now.difference(lastTime);
+
+                                  if (diff.inMinutes < 30) {
+                                    final wait = 30 - diff.inMinutes;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Please wait $wait more minute(s) before posting again.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                // cooldown check
+                                await FirebaseFirestore.instance
+                                    .collection('reports')
+                                    .add({
+                                      'userId': user.uid,
+                                      'userDisplayName':
+                                          user.displayName ??
+                                          user.email ??
+                                          'User',
+                                      'message': msg,
+                                      'city': city,
+                                      'timestamp': Timestamp.now(),
+                                    });
+
+                                _reportController.clear();
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -201,7 +325,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-/// widget displaying current info
+// widget displaying current info
 class CurrentWeatherInfo extends StatelessWidget {
   final double temperature;
   final String description;
@@ -246,7 +370,7 @@ class HourlyForecastCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(),
         border: Border.all(color: Colors.blueGrey),
         borderRadius: BorderRadius.circular(12),
       ),
